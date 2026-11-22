@@ -24,7 +24,7 @@ const COSMIC_BRAIN_B64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gH
         }
 
         body {
-            background-color: #05060a;
+            background-color: #000;  /* black bars for letterboxing */
             color: #e2e8f0;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
             overflow: hidden;
@@ -37,8 +37,10 @@ const COSMIC_BRAIN_B64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gH
             touch-action: none;
         }
 
+        /* 16:9 letterbox wrapper — always fills viewport, game inside is always 16:9 */
         #game-container {
             position: relative;
+            /* Will be sized by JS to maintain 16:9 */
             width: 100%;
             height: 100%;
             display: flex;
@@ -92,10 +94,9 @@ const COSMIC_BRAIN_B64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gH
         }
 
         canvas {
-            position: relative;
+            position: absolute;
             display: block;
-            width: 100%;
-            height: 100%;
+            /* Width/height set by JS for 16:9 enforcement */
             background: transparent;
             touch-action: none;
             z-index: 2;
@@ -1288,9 +1289,51 @@ let bgStars = [];
 let camera = { x: 0, y: 0 };
 const keys = {};
 
+// ==========================================
+// 16:9 ASPECT RATIO ENFORCEMENT
+// Canvas always renders at 16:9. The CSS scales
+// it to fill the container with letterboxing.
+// ==========================================
+const GAME_RATIO = 16 / 9;
+const BASE_HEIGHT = 600; // logical game units
+
 function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const viewRatio = vw / vh;
+
+    let cw, ch;
+    if (viewRatio >= GAME_RATIO) {
+        // Wider than 16:9 — letterbox on sides (pillarbox)
+        ch = vh;
+        cw = Math.round(ch * GAME_RATIO);
+    } else {
+        // Taller than 16:9 — letterbox top/bottom
+        cw = vw;
+        ch = Math.round(cw / GAME_RATIO);
+    }
+
+    // Set the CSS display size (what the user sees)
+    canvas.style.width  = cw + 'px';
+    canvas.style.height = ch + 'px';
+    canvas.style.position = 'absolute';
+    canvas.style.left = Math.round((vw - cw) / 2) + 'px';
+    canvas.style.top  = Math.round((vh - ch) / 2) + 'px';
+
+    // Set the internal resolution — fixed 16:9 resolution for consistency
+    // Use a standard HD resolution capped to screen pixel ratio for sharpness
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width  = Math.round(cw * dpr);
+    canvas.height = Math.round(ch * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Resize the game-container to match (so HUD overlays align correctly)
+    const gc = document.getElementById('game-container');
+    gc.style.width  = cw + 'px';
+    gc.style.height = ch + 'px';
+    gc.style.position = 'absolute';
+    gc.style.left = Math.round((vw - cw) / 2) + 'px';
+    gc.style.top  = Math.round((vh - ch) / 2) + 'px';
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
@@ -1364,16 +1407,24 @@ function updateHUD() {
     const hintDash = document.getElementById('hint-dash');
     const hintBridge = document.getElementById('hint-bridge');
 
+    const hudEl = document.getElementById('hud');
+    const hudControls = hudEl.querySelector('.hud-controls');
     if (activeMode === 'BLUE') {
         traitsPanel.style.display = 'none';
         hintDash.style.display = 'none';
         hintBridge.style.display = 'none';
         scorePanel.style.display = 'none';
+        // Keep HUD controls (Reset, Audio, Red/Blue switch) always visible
+        if (hudControls) hudControls.style.display = 'flex';
+        // Show step counter for Blue mode
+        document.getElementById('stage-num').textContent = 'The Mundane Commute';
+        document.getElementById('stage-name').textContent = levelData ? levelData.name : '';
     } else {
         traitsPanel.style.display = 'flex';
         hintDash.style.display = 'inline-block';
         hintBridge.style.display = 'inline-block';
         scorePanel.style.display = 'block';
+        if (hudControls) hudControls.style.display = 'flex';
 
         for (let i = 0; i < 2; i++) {
             const slot = document.getElementById(`slot-${i}`);
@@ -1792,18 +1843,18 @@ window.addEventListener('contextmenu', (e) => {
 // ORIENTATION CHANGE — resize canvas & HUD
 // ==========================================
 function handleOrientationChange() {
-    // Delay so the browser has time to reflow
+    // Delay so the browser has time to reflow at correct dimensions
     setTimeout(() => {
         resizeCanvas();
-        // Force camera recalculation
+        // Force camera recalculation in logical canvas coords
         if (levelData && player) {
-            const lead = canvas.width < 768 ? 0.26 : 0.38;
-            camera.x = Math.max(0, player.x - canvas.width * lead);
+            const logicalW = canvas.width / (window.devicePixelRatio || 1);
+            const lead = logicalW < 768 ? 0.26 : 0.38;
+            camera.x = Math.max(0, player.x - logicalW * lead);
         }
-    }, 150);
+    }, 200);
 }
 window.addEventListener('orientationchange', handleOrientationChange);
-window.addEventListener('resize', handleOrientationChange);
 
 // ==========================================
 // 9. PHYSICS & COLLISION
