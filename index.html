@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Tabula Rasa: Existence & The Absurd</title>
     <!-- Include base64 brain asset if present -->
     <script>
@@ -537,11 +540,107 @@ const COSMIC_BRAIN_B64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gH
 
         .touch-btn.active .btn-sub { color: #f8fafc; }
 
+        /* =============================================
+           MOBILE: General (any phone or narrow screen)
+           ============================================= */
         @media (max-width: 820px) {
             #touch-controls { display: flex; }
             #controls-bar { display: none; }
             .trait-slot { min-width: auto; padding: 0.35rem 0.55rem; font-size: 0.72rem; }
             .stage-title { font-size: 0.82rem; }
+            .touch-btn { width: 56px; height: 56px; font-size: 0.95rem; }
+        }
+
+        /* =============================================
+           PORTRAIT PHONE: rotate prompt + compact HUD
+           ============================================= */
+        @media (max-width: 820px) and (orientation: portrait) {
+            /* Show a rotation nudge banner */
+            #rotate-hint {
+                display: flex !important;
+            }
+            /* Shrink HUD so it doesn't overflow */
+            #hud {
+                flex-wrap: wrap;
+                gap: 0.3rem;
+                top: max(0.4rem, env(safe-area-inset-top));
+                left: max(0.4rem, env(safe-area-inset-left));
+                right: max(0.4rem, env(safe-area-inset-right));
+            }
+            .hud-panel { padding: 0.3rem 0.5rem; border-radius: 8px; }
+            .stage-label { font-size: 0.6rem; }
+            .stage-title { font-size: 0.7rem; }
+            .trait-slot { font-size: 0.6rem; padding: 0.25rem 0.4rem; min-width: 70px; }
+            .score-pill { font-size: 0.7rem; }
+            .icon-btn { font-size: 0.65rem; padding: 0.3rem 0.5rem; }
+            /* Push touch buttons higher & make them smaller */
+            #touch-controls {
+                bottom: max(0.6rem, env(safe-area-inset-bottom, 0.6rem));
+            }
+            .touch-btn { width: 48px; height: 48px; font-size: 0.85rem; }
+            .btn-sub { font-size: 0.45rem; }
+        }
+
+        /* =============================================
+           LANDSCAPE PHONE: full-screen game, compact HUD
+           ============================================= */
+        @media (max-height: 500px) and (orientation: landscape) {
+            #rotate-hint { display: none !important; }
+            #hud {
+                top: max(0.3rem, env(safe-area-inset-top));
+                left: max(0.5rem, env(safe-area-inset-left));
+                right: max(0.5rem, env(safe-area-inset-right));
+                gap: 0.3rem;
+            }
+            .hud-panel { padding: 0.25rem 0.5rem; border-radius: 8px; }
+            .stage-label { font-size: 0.58rem; }
+            .stage-title { font-size: 0.68rem; }
+            .trait-slot { font-size: 0.6rem; padding: 0.2rem 0.4rem; min-width: 72px; }
+            .score-pill { font-size: 0.65rem; }
+            .icon-btn { font-size: 0.6rem; padding: 0.25rem 0.45rem; }
+            /* Smaller, repositioned touch controls for landscape */
+            #touch-controls {
+                bottom: max(0.4rem, env(safe-area-inset-bottom, 0.4rem));
+                left: max(0.5rem, env(safe-area-inset-left, 0.5rem));
+                right: max(0.5rem, env(safe-area-inset-right, 0.5rem));
+            }
+            .touch-btn { width: 50px; height: 50px; font-size: 0.9rem; }
+            .btn-sub { font-size: 0.42rem; }
+            .touch-group { gap: 0.4rem; }
+        }
+
+        /* =============================================
+           ROTATE HINT OVERLAY
+           ============================================= */
+        #rotate-hint {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(5, 6, 10, 0.92);
+            z-index: 50;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            pointer-events: none;
+        }
+        #rotate-hint .rotate-icon {
+            font-size: 3.5rem;
+            animation: rotatePhone 1.8s ease-in-out infinite;
+        }
+        #rotate-hint p {
+            font-family: 'Cinzel', Georgia, serif;
+            font-size: 0.9rem;
+            color: #94a3b8;
+            letter-spacing: 0.1em;
+            text-align: center;
+            padding: 0 2rem;
+        }
+        @keyframes rotatePhone {
+            0%   { transform: rotate(0deg); }
+            40%  { transform: rotate(90deg); }
+            60%  { transform: rotate(90deg); }
+            100% { transform: rotate(0deg); }
         }
 
         /* Generic Big Button */
@@ -633,6 +732,12 @@ const COSMIC_BRAIN_B64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gH
 <body>
 
 <div id="game-container">
+    <!-- Portrait rotation hint (hidden in landscape) -->
+    <div id="rotate-hint">
+        <div class="rotate-icon">📱</div>
+        <p>Rotate your device to landscape for the best experience</p>
+    </div>
+
     <!-- Cosmic Brain Background (Existential consciousness projecting the universe) -->
     <div id="bg-brain-container">
         <div id="bg-brain"></div>
@@ -1609,6 +1714,96 @@ window.addEventListener('contextmenu', (e) => {
         e.preventDefault();
     }
 });
+
+// ==========================================
+// SWIPE / DRAG GESTURE CONTROLS ON CANVAS
+// Let players swipe left/right to move and
+// swipe up to jump (without using the buttons).
+// ==========================================
+(function setupSwipeControls() {
+    const cvs = document.getElementById('gameCanvas');
+    let swipeStartX = null;
+    let swipeStartY = null;
+    let swipeActive = false;
+    const MOVE_THRESHOLD = 20;   // px horizontal drag to register movement
+    const SWIPE_UP_MIN = -40;    // negative Y delta = swipe up
+    const SWIPE_RIGHT_MIN = 30;  // positive X delta = move right
+    const SWIPE_LEFT_MAX = -30;  // negative X delta = move left
+
+    cvs.addEventListener('touchstart', (e) => {
+        // Only handle single-finger swipes NOT on touch button area
+        if (e.target.closest('#touch-controls')) return;
+        const t = e.changedTouches[0];
+        swipeStartX = t.clientX;
+        swipeStartY = t.clientY;
+        swipeActive = true;
+        audio.init();
+    }, { passive: true });
+
+    cvs.addEventListener('touchmove', (e) => {
+        if (!swipeActive || swipeStartX === null) return;
+        if (e.target.closest('#touch-controls')) return;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - swipeStartX;
+        const dy = t.clientY - swipeStartY;
+
+        // Continuous horizontal movement while finger is held
+        if (Math.abs(dx) > MOVE_THRESHOLD) {
+            keys['ArrowLeft'] = false;
+            keys['ArrowRight'] = false;
+            if (dx > 0) {
+                keys['ArrowRight'] = true;
+            } else {
+                keys['ArrowLeft'] = true;
+            }
+        }
+    }, { passive: true });
+
+    cvs.addEventListener('touchend', (e) => {
+        if (!swipeActive || swipeStartX === null) return;
+        if (e.target.closest('#touch-controls')) return;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - swipeStartX;
+        const dy = t.clientY - swipeStartY;
+
+        // Swipe UP = jump (fast upward flick)
+        if (dy < SWIPE_UP_MIN && Math.abs(dx) < 60) {
+            triggerJump();
+        }
+
+        // Clear horizontal movement on lift
+        keys['ArrowLeft'] = false;
+        keys['ArrowRight'] = false;
+        swipeActive = false;
+        swipeStartX = null;
+        swipeStartY = null;
+    }, { passive: true });
+
+    cvs.addEventListener('touchcancel', () => {
+        keys['ArrowLeft'] = false;
+        keys['ArrowRight'] = false;
+        swipeActive = false;
+        swipeStartX = null;
+        swipeStartY = null;
+    }, { passive: true });
+})();
+
+// ==========================================
+// ORIENTATION CHANGE — resize canvas & HUD
+// ==========================================
+function handleOrientationChange() {
+    // Delay so the browser has time to reflow
+    setTimeout(() => {
+        resizeCanvas();
+        // Force camera recalculation
+        if (levelData && player) {
+            const lead = canvas.width < 768 ? 0.26 : 0.38;
+            camera.x = Math.max(0, player.x - canvas.width * lead);
+        }
+    }, 150);
+}
+window.addEventListener('orientationchange', handleOrientationChange);
+window.addEventListener('resize', handleOrientationChange);
 
 // ==========================================
 // 9. PHYSICS & COLLISION
